@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pareto Optimal vs Rawlsian Equity Simulation</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { font-family: 'Sarabun', sans-serif; line-height: 1.6; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1, h2, h3 { color: #2c3e50; border-bottom: 2px solid #ddd; padding-bottom: 10px; margin-top: 30px; }
+        h1 { border-color: #3498db; text-align: center; }
+        .theory-section { margin-bottom: 25px; padding: 15px; border-radius: 8px; }
+        .pareto-box { background-color: #e3f2fd; border-left: 5px solid #3498db; }
+        .rawls-box { background-color: #e8f5e9; border-left: 5px solid #2ecc71; }
+        .math-box { font-size: 1.1em; text-align: center; margin: 15px 0; padding: 10px; background: rgba(255,255,255,0.5); border-radius: 4px; }
+        .canvas-container { position: relative; height: 500px; width: 100%; margin-top: 20px; }
+        .controls { background: #eee; padding: 15px; border-radius: 8px; margin-top: 20px; text-align: center; }
+        button { padding: 10px 20px; font-size: 1em; cursor: pointer; background-color: #3498db; color: white; border: none; border-radius: 5px; transition: background 0.3s; margin: 0 10px; }
+        button:hover { background-color: #2980b9; }
+        button.active-rawls { background-color: #2ecc71; }
+        button.active-rawls:hover { background-color: #27ae60; }
+        .legend-custom { font-size: 0.9em; color: #555; text-align: center; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>เปรียบเทียบ Pareto Optimality และ Rawlsian Equity</h1>
+    
+    <p class="description">การจำลองนี้แสดงความแตกต่างระหว่างแนวคิด "ประสิทธิภาพ" (Pareto) และ "ความยุติธรรม" (Rawls) ในการจัดสรรทรัพยากรระหว่างคนสองคน (A และ B)</p>
+
+    <div class="theory-section pareto-box">
+        <h3>1. หลักการ Pareto Optimal (ประสิทธิภาพ)</h3>
+        <p>สภาวะที่ **ไม่สามารถทำให้ใครคนหนึ่งดีขึ้นได้ โดยไม่ทำให้คนอื่นอย่างน้อยหนึ่งคนแย่ลง** เน้นที่การใช้ทรัพยากรให้คุ้มค่าที่สุด</p>
+        <div class="math-box">
+            $$ W_{Pareto} \text{ คือจุดบนเส้นขอบเขตประสิทธิภาพ (Frontier)} $$
+        </div>
+    </div>
+
+    <div class="theory-section rawls-box">
+        <h3>2. หลักการ Rawlsian SWF (ความยุติธรรมแบบ Maximin)</h3>
+        <p>สวัสดิการสังคมขึ้นอยู่กับ **บุคคลที่เสียเปรียบที่สุด** เป้าหมายคือทำให้คนแด่ที่สุดมีสภาวะที่ดีขึ้นมากที่สุด (Maximize the minimum)</p>
+        <div class="math-box">
+            $$ W = \min(U_A, U_B) $$
+        </div>
+        <p><em>* ในกราฟ สวัสดิการแบบ Rawls จะมีลักษณะเป็นเส้น "L-shape" (Indifference Curve)</em></p>
+    </div>
+
+    <h2>3. กราฟจำลอง Interactive</h2>
+    <p>เส้นโค้งสีฟ้าคือ **Pareto Frontier** (ขีดจำกัดทรัพยากร) <br>
+    ลองคลิกปุ่มด้านล่างเพื่อแสดงเส้นวัดความยุติธรรมแบบ Rawls</p>
+    
+    <div class="canvas-container">
+        <canvas id="comparisonChart"></canvas>
+    </div>
+
+    <div class="controls">
+        <span>แสดงผลเพิ่มเติม: </span>
+        <button id="toggleRawls" onclick="toggleRawlsLine()">แสดงเส้นสวัสดิการ Rawls (W=3)</button>
+    </div>
+
+    <div class="legend-custom">
+        **แกน X:** ความพึงพอใจของ A | **แกน Y:** ความพึงพอใจของ B | **จุด Optimum ของ Rawls:** คือจุดบน Frontier ที่เส้น L-shape ตัดผ่านพอดี
+    </div>
+
+</div>
+
+<script>
+    const ctx = document.getElementById('comparisonChart').getContext('2d');
+    
+    // 1. ข้อมูลสำหรับเส้น Pareto Frontier (Utility Possibility Frontier)
+    // ใช้สมการวงกลม r=10 ในไตรมาสที่ 1: y = sqrt(100 - x^2)
+    const frontierData = [];
+    for (let x = 0; x <= 10; x += 0.1) {
+        frontierData.push({x: x, y: Math.sqrt(100 - Math.pow(x, 2))});
+    }
+
+    // 2. ข้อมูลสำหรับเส้นสวัสดิการ Rawls (L-shape) - สมมติระดับสวัสดิการ W=3
+    const rawlsLevel = 3;
+    const rawlsData = [
+        {x: rawlsLevel, y: 12}, // แขนแนวตั้ง
+        {x: rawlsLevel, y: rawlsLevel}, // มุม L
+        {x: 12, y: rawlsLevel}  // แขนแนวนอน
+    ];
+
+    // 3. จุดสมดุลของ Rawls (Rawlsian Optimum) บน Frontier
+    // ในสมการวงกลม y = sqrt(100-x^2) และเส้น Rawls W=min(x,y) จุดที่ optimal คือ x=y
+    // sqrt(100 - x^2) = x  => 100 - x^2 = x^2 => 2x^2 = 100 => x = sqrt(50) ≈ 7.07
+    const rawlsOptX = Math.sqrt(50);
+    const rawlsOptimumPoint = [{x: rawlsOptX, y: rawlsOptX}];
+
+    const chartData = {
+        datasets: [
+            {
+                label: 'Pareto Frontier (Efficient)',
+                data: frontierData,
+                borderColor: '#3498db',
+                backgroundColor: 'rgba(52, 152, 219, 0.05)',
+                fill: true,
+                showLine: true,
+                tension: 0.1,
+                pointRadius: 0,
+                order: 2
+            },
+            {
+                label: 'สวัสดิการสังคมแบบ Rawls (L-shape W=3)',
+                data: rawlsData,
+                borderColor: '#2ecc71',
+                borderWidth: 3,
+                borderDash: [5, 5],
+                fill: false,
+                showLine: true,
+                tension: 0, // ส้นตรงเป๊ะที่มุม
+                pointRadius: 0,
+                hidden: true, // เริ่มต้นซ่อนไว้
+                order: 1
+            },
+            {
+                label: 'จุด Optimum ของ Rawls (Maximin)',
+                data: rawlsOptimumPoint,
+                backgroundColor: '#27ae60',
+                pointRadius: 7,
+                pointHoverRadius: 9,
+                type: 'scatter',
+                hidden: true, // เริ่มต้นซ่อนไว้
+                order: 0
+            }
+        ]
+    };
+
+    const config = {
+        type: 'scatter',
+        data: chartData,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    title: { display: true, text: 'อรรถประโยชน์ของคนที่ A (Utility A)' },
+                    min: 0, max: 12, ticks: { stepSize: 1 }
+                },
+                y: {
+                    title: { display: true, text: 'อรรถประโยชน์ของคนที่ B (Utility B)' },
+                    min: 0, max: 12, ticks: { stepSize: 1 }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            if(context.dataset.label.includes('Optimum')) {
+                                return `จุด Optimum ของ Rawls: (A≈${context.parsed.x.toFixed(2)}, B≈${context.parsed.y.toFixed(2)})`;
+                            }
+                            return `${context.dataset.label}`;
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    const myChart = new Chart(ctx, config);
+
+    // ฟังก์ชันเปิด/ปิดการแสดงเส้น Rawls
+    function toggleRawlsLine() {
+        const rawlsDataset = myChart.data.datasets[1];
+        const rawlsOptPointDataset = myChart.data.datasets[2];
+        const btn = document.getElementById('toggleRawls');
+
+        if (rawlsDataset.hidden) {
+            rawlsDataset.hidden = false;
+            rawlsOptPointDataset.hidden = false;
+            btn.textContent = 'ซ่อนเส้นสวัสดิการ Rawls';
+            btn.classList.add('active-rawls');
+        } else {
+            rawlsDataset.hidden = true;
+            rawlsOptPointDataset.hidden = true;
+            btn.textContent = 'แสดงเส้นสวัสดิการ Rawls (W=3)';
+            btn.classList.remove('active-rawls');
+        }
+        myChart.update();
+    }
+</script>
+
+</body>
+</html>
